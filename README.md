@@ -1,34 +1,44 @@
-# Hangman—Running the Dictionary as an Agent
+# Hangman, The Application
 
-Have a look at the code that implements the dictionary
-(`lib/hangman/dictionary.ex`). Right now it is a simple module. When
-you call either of its external API functions (`random_word` or
-`words_of_length`), it first reads the word list from disk, then
-selects either a random word or all words of a certain length. It has
-no ability to store any state, and therefore has to read the word list
-afresh on each call.
+Time to wrap up the app.
 
-Your mission is to change `dictionary.ex` so that it runs as a
-separate process, holding the wordlist as state. This means it only
-has to read it once, when it starts up.
+We'll need to do a few things. First, we'll add supervision.
 
-Although you _could_ write this using `spawn`, in the real world we'd
-exploit the convenience of the built-in libraries. In this case, I'd
-like you to keep the word list in an Agent, and have the `random_word`
-and `words_of_length` functions invoke this agent.
+For this app, we have a dictionary, and we'll have a dynamic pool of
+worker processes running the GameServer module. This means we'll need
+two supervisors.
 
-Because the agent needs to be started, you'll need to implement a new
-function, `start_link`. This will take an optional parameter, the name
-of the word list. It will create an Agent containing the words in that
-file. This agent will have the name `:dictionary`. I like to keep
-things like server names in module attributes, and you'll find I've
-already added
+The top level supervisor will be written in the file `lib/hangman.ex`,
+inside the `start/2` function. It will start the dictionary worker and
+a second supervisor, Hangman.GameSupervisor.
 
-    @me :dictionary
+You'll need to write a module for this second supervisor. It will use
+the `simple_one_for_one` strategy to create and control a pool of
+GameServers. Your supervisor module will provide a `start_link`
+function to get itself started, and a `new_game` function that will
+call the supervisor to ask it to spawn a new worked.
+
+Once this part is done, you'll be able to use iex to get it running:
+
+    iex> Hangman.start(nil, nil)
     
-to the Dictionary module.
+    iex> pid = Hangman.GameSupervisor.new_game
+    
+    iex> Hangman.GameServer.make_move("a") # ...
+    
+Finally, add the `mod:` section to the application function in
+`mix.exs`. 
 
-You'll find that the tests, as well as HumanPlayer and ComputerPlayer,
-have been updated to call `Dictionary.start_link` before they make use
-of the dictionary API.
+      mod:  { Hangman, [] },
+    
+Now when you run `iex -S mix`, everything should start automatically.
 
+Verify that the game can still be played:
+
+    $ mix run  -e Hangman.HumanPlayer.play
+
+    $ mix run  -e Hangman.ComputerPlayer.play
+    
+    
+
+     
